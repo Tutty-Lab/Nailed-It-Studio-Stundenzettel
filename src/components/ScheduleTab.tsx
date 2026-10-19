@@ -10,7 +10,8 @@ import {
 } from "../lib/demand";
 import { minutesToShortHours, minutesToTime } from "../lib/time";
 import { signedHours } from "../lib/dateFormat";
-import { isDayClosed } from "../lib/workHours";
+import { isDayClosed, resolveDay } from "../lib/workHours";
+import { workingAt } from "../lib/staffing";
 import { publicHolidays } from "../lib/holidays";
 import { ShiftCellEditor } from "./ShiftCellEditor";
 import { ScheduleDayView } from "./ScheduleDayView";
@@ -148,6 +149,38 @@ export function ScheduleTab({
     return map;
   }, [store.analysis]);
   const staffingRows = store.storeConfig.staffingRules;
+
+  // Debug: ai mở cửa / đóng cửa, và số người ÍT NHẤT có mặt trong từng khung
+  // (trừ giờ nghỉ) – để chủ đánh giá lịch nhanh theo từng ngày.
+  const debugStats = useMemo(() => {
+    const holidays = publicHolidays(schedule.year);
+    const ovMap = Object.fromEntries(schedule.dateOverrides.map((o) => [o.date, o]));
+    const nameOf = new Map(schedule.employees.map((e) => [e.id, e.name.trim().split(/\s+/).pop() ?? e.name]));
+    const result = new Map<string, { open: string; close: string; windows: Map<string, number | null> }>();
+    for (const d of dates) {
+      const day = resolveDay(schedule.workHours, d, holidays, ovMap);
+      const dayShifts = schedule.shifts.filter((s) => s.date === d);
+      const windows = new Map<string, number | null>();
+      if (day.closed || dayShifts.length === 0) {
+        result.set(d, { open: "–", close: "–", windows });
+        continue;
+      }
+      const from = day.window.startMinutes;
+      const to = day.window.endMinutes;
+      const openers = dayShifts.filter((s) => s.startMinutes <= from).map((s) => nameOf.get(s.employeeId));
+      const closers = dayShifts.filter((s) => s.endMinutes >= to).map((s) => nameOf.get(s.employeeId));
+      for (const w of DEBUG_WINDOWS) {
+        let min: number | null = null;
+        for (let t = Math.max(w.from, from); t + 30 <= Math.min(w.to, to); t += 30) {
+          const count = dayShifts.filter((s) => workingAt(s, t)).length;
+          min = min == null ? count : Math.min(min, count);
+        }
+        windows.set(w.key, min);
+      }
+      result.set(d, { open: openers.join(", ") || "✗", close: closers.join(", ") || "✗", windows });
+    }
+    return result;
+  }, [dates, schedule]);
 
   const hasEmployees = store.activeEmployees.length > 0;
 
@@ -392,6 +425,21 @@ export function ScheduleTab({
                   peaks={(d) => peaksByDay.get(d)?.byLabel.get(rule.label)}
                 />
               ))}
+              {schedule.shifts.length > 0 && (
+                <>
+                  <SummaryRow label="Mở 09:00" dates={gridDates} value={(d) => debugStats.get(d)?.open ?? "–"} />
+                  <SummaryRow label="Đóng 20:00" dates={gridDates} value={(d) => debugStats.get(d)?.close ?? "–"} />
+                  {DEBUG_WINDOWS.map((w) => (
+                    <MinPeopleRow
+                      key={w.key}
+                      label={w.label}
+                      title={`Số người ít nhất có mặt ${w.label} (đã trừ giờ nghỉ)`}
+                      dates={gridDates}
+                      value={(d) => debugStats.get(d)?.windows.get(w.key) ?? null}
+                    />
+                  ))}
+                </>
+              )}
             </tfoot>
           </table>
         </div>
@@ -408,6 +456,39 @@ export function ScheduleTab({
       )}
       </div>
     </section>
+  );
+}
+
+/** Khung kiểm tra cho dòng debug (khớp khung khách đông 09–12, 14–17). */
+const DEBUG_WINDOWS = [
+  { key: "all", label: "Ít nhất cả ngày", from: 0, to: 24 * 60 },
+  { key: "am", label: "Ít nhất 9–12", from: 9 * 60, to: 12 * 60 },
+  { key: "noon", label: "Ít nhất 12–14", from: 12 * 60, to: 14 * 60 },
+  { key: "pm", label: "Ít nhất 14–17", from: 14 * 60, to: 17 * 60 },
+  { key: "eve", label: "Ít nhất 17–20", from: 17 * 60, to: 20 * 60 },
+] as const;
+
+/** Số người ít nhất: 0 = đỏ (tiệm trống), 1 = vàng. */
+function MinPeopleRow({ label, title, dates, value }: {
+  label: string;
+  title: string;
+  dates: string[];
+  value: (d: string) => number | null;
+}) {
+  return (
+    <tr className="bg-slate-50 text-slate-600">
+      <td title={title}
+        className="sticky left-0 z-10 bg-slate-50 border-t border-r border-slate-200 px-1.5 py-1 font-medium w-[80px] max-w-[80px] text-[10px] leading-tight">
+        {label}
+      </td>
+      {dates.map((d) => {
+        const n = value(d);
+        const tone = n == null ? "text-slate-300" : n === 0 ? "bg-rose-50 text-rose-700 font-semibold" : n === 1 ? "bg-amber-50 text-amber-800" : "";
+        return <td key={d} className={`border-t border-l border-slate-200 px-1 py-1 text-center ${tone}`}>{n ?? "–"}</td>;
+      })}
+      <td className="border-t border-l border-slate-200" />
+      <td className="border-t border-l border-slate-200" />
+    </tr>
   );
 }
 
