@@ -40,12 +40,14 @@ export function makeWeekly(
 
 const WAGE = MINDESTLOHN_2026;
 
-/** Nailed it Studio, Schössergasse 23, 01067 Dresden. Alle ab 01.10.2026. */
+/**
+ * Nailed it Studio, Schössergasse 23, 01067 Dresden. Eintrittsdaten unbekannt –
+ * ohne startDate lassen sich auch Monate vor 10/2026 planen.
+ */
 export function naileditEmployees(): Employee[] {
   const fixed = (id: string, name: string, hours: number, extra: Partial<Employee> = {}): Employee => ({
     ...makeEmployee(id, name, "TEILZEIT", hours),
     hourlyWage: WAGE,
-    startDate: "2026-10-01",
     maxDaysPerWeek: 5,
     ...extra,
   });
@@ -58,7 +60,6 @@ export function naileditEmployees(): Employee[] {
       ...makeEmployee("nailedit-5", "Lê Nguyễn Bảo Ngọc", "MINIJOB", hoursFromPay(630, WAGE)!),
       monthlySalary: 630,
       hourlyWage: WAGE,
-      startDate: "2026-10-01",
       maxDaysPerWeek: 5,
     },
     fixed("nailedit-6", "Nguyễn Quỳnh Như", 80, { endDate: "2026-10-31" }),

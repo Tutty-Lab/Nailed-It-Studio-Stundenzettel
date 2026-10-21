@@ -1,4 +1,4 @@
-import { isOnVacation } from "../lib/availability";
+import { leaveLabel } from "../lib/availability";
 import type { Employee, Schedule, Shift } from "../types";
 import {
   datesOfMonth,
@@ -105,7 +105,7 @@ export function StundenzettelPage({
                 ? closed.note || "Betriebsruhe"
                 : holiday
                   ? `Frei (Feiertag: ${holiday})`
-                  : isOnVacation(employee, d) && wd !== "Sonntag" ? "Urlaub (Stunden offen)" : "Frei";
+                  : leaveLabel(employee, d) && wd !== "Sonntag" ? leaveLabel(employee, d)! : "Frei";
               return (
                 <tr key={d} className={rowCls}>
                   <Td className="whitespace-nowrap align-middle">
@@ -213,15 +213,11 @@ export function StundenzettelPage({
         </tfoot>
       </table>
 
-      <div className="mt-3 text-[12px]">
-        <div className="text-slate-500">Gesamtstunden</div>
-        <div className="font-semibold">{minutesToDecimalHours(totalMinutes)} h</div>
-      </div>
-
-      <div className="mt-10 grid grid-cols-3 gap-8 text-[11px]">
-        <Signature label="Unterschrift Mitarbeiter" />
-        <Signature label="Unterschrift Arbeitgeber" />
-        <Signature label="Datum" />
+      {/* Leere Felder wie bei Thienlong – der Chef trägt die Stunden von Hand ein. */}
+      <div className="mt-3 grid grid-cols-3 gap-4 text-[12px]">
+        <HandField label="Gesamtstunden" />
+        <HandField label="Nachtstunden (ab 20 Uhr)" />
+        <HandField label="Sonntagsstunden" />
       </div>
     </div>
   );
@@ -267,10 +263,11 @@ function Td({
   );
 }
 
-function Signature({ label }: { label: string }) {
+function HandField({ label }: { label: string }) {
   return (
     <div>
-      <div className="border-t border-slate-500 pt-1 mt-8 text-slate-600">{label}</div>
+      <div className="text-slate-500">{label}</div>
+      <div className="mt-6 w-40 border-b border-slate-400" />
     </div>
   );
 }

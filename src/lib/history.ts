@@ -12,15 +12,26 @@ import type { Employee, PayrollRecord, Schedule } from "../types";
 import { hoursFromPay, recordHours } from "./payRecord";
 export { MINDESTLOHN_2026, hoursFromPay, recordHours } from "./payRecord";
 import { monthlyTargetMinutesFor } from "./contract";
+import { isEmployedOn } from "./availability";
 import type { WorkHoursConfig } from "./workHours";
 
 export function monthKey(year: number, month: number): string {
   return `${year}-${String(month).padStart(2, "0")}`;
 }
 
-/** Không còn dữ liệu cũ cần nạp: app bắt đầu từ 10/2026, không nhập lại giấy. */
+/**
+ * Migration: bản đầu đặt „ngày vào làm" 01.10.2026 cho cả 6 người, khiến không
+ * tạo được lịch các tháng trước. Ngày vào làm thật chưa biết -> bỏ.
+ */
 export function applyReportedHistory(schedule: Schedule): Schedule {
-  return schedule;
+  if ((schedule.historyVersion ?? 0) >= 2) return schedule;
+  return {
+    ...schedule,
+    historyVersion: 2,
+    employees: schedule.employees.map((e) =>
+      /^nailedit-[1-6]$/.test(e.id) && e.startDate === "2026-10-01" ? { ...e, startDate: undefined } : e,
+    ),
+  };
 }
 
 /** Bản ghi của tháng (nếu có) thay cho hợp đồng chung, không chia tỉ lệ lại. */
@@ -52,7 +63,13 @@ export function freezeMonth(
 ): Employee[] {
   return employees.map((employee) => {
     if (employee.isOwner || employee.payrollRecords?.some((r) => r.month === month)) return employee;
-    const minutes = monthlyTargetMinutesFor(employee, openDates, workHours);
+    if (!openDates.some((d) => isEmployedOn(employee, d))) return employee;
+    // Giờ CẢ THÁNG theo hợp đồng; vào/thôi làm và ngày nghỉ được trừ lúc xếp.
+    const minutes = monthlyTargetMinutesFor(
+      { ...employee, startDate: undefined, endDate: undefined, vacations: [] },
+      openDates,
+      workHours,
+    );
     if (minutes <= 0) return employee;
     const fromPay = hoursFromPay(employee.monthlySalary, employee.hourlyWage);
     return upsertRecord(employee, {

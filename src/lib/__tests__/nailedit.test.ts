@@ -107,3 +107,23 @@ describe("Lohn-/Stundenhistorie je Monat", () => {
     expect(employeeForMonth(manual, "2026-12").targetMinutes).toBe(60 * 60);
   });
 });
+
+describe("Nghỉ qua hai tháng (21.10.–21.11.)", () => {
+  it("giảm giờ mục tiêu từng tháng theo ngày mở cửa còn đi làm, không xếp ca ngày nghỉ", async () => {
+    const { monthlyTargetMinutesFor } = await import("../contract");
+    const viet = { ...schedule.employees.find((e) => e.id === "nailedit-1")!, vacations: [{ start: "2026-10-21", end: "2026-11-21" }] };
+    // Okt: 16 von 25 offenen Tagen, Nov: 7 von 24 – auf 30 Minuten gerundet.
+    expect(monthlyTargetMinutesFor(viet, openDatesOf(2026, 10), store.workHours)).toBe(51 * 60);
+    expect(monthlyTargetMinutesFor(viet, openDatesOf(2026, 11), store.workHours)).toBe(23.5 * 60);
+    const employees = schedule.employees.map((e) => (e.id === viet.id ? viet : e));
+    const oct = plan(2026, 10, employees).filter((s) => s.employeeId === viet.id);
+    expect(oct.some((s) => s.date >= "2026-10-21")).toBe(false);
+    expect(oct.reduce((n, s) => n + s.paidMinutes, 0)).toBe(51 * 60);
+  });
+});
+
+describe("Tháng trước 10/2026", () => {
+  it("vẫn tạo được lịch (không có ngày vào làm mặc định)", () => {
+    expect(plan(2026, 9).length).toBeGreaterThan(0);
+  });
+});

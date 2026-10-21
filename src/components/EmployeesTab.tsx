@@ -582,7 +582,7 @@ function EmployeeSheet({
 }) {
   const [d, setD] = useState<Draft>(() => draftFrom(employee, partners));
   const [loeschFrage, setLoeschFrage] = useState(false);
-  const [showPeriod, setShowPeriod] = useState(() => !!(employee?.startDate || employee?.endDate));
+  const [showPeriod, setShowPeriod] = useState(true);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((prev) => ({ ...prev, [k]: v }));
@@ -686,7 +686,7 @@ function EmployeeSheet({
               <span>
                 Cài đặt nâng cao
                 <span className="block text-xs font-normal text-slate-400">
-                  Nghỉ phép, ngày nghỉ, độ dài ca, khung giờ ưu tiên, ca cố định, ngày vào làm …
+                  Ngày vào/thôi làm, nghỉ phép, ngày nghỉ cố định, hợp đồng, độ dài ca …
                 </span>
               </span>
               <span className="text-slate-400">{showAdvanced ? "▾" : "▸"}</span>
@@ -700,6 +700,98 @@ function EmployeeSheet({
                 )}
                 {/* fieldset disabled sperrt alle Eingaben darin auf einmal. */}
                 <fieldset disabled={!ADVANCED_EDITABLE} className={`space-y-6 ${ADVANCED_EDITABLE ? "" : "opacity-50"}`}>
+                  <SheetSection title="Ngày vào làm / nghỉ việc">
+                    {!showPeriod ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowPeriod(true)}
+                        className="w-full rounded-lg border border-dashed border-slate-300 px-3 py-2.5 text-left text-sm text-slate-600"
+                      >
+                        + Ngày vào làm / nghỉ việc <span className="text-slate-400">(nếu không làm cả tháng)</span>
+                      </button>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-3">
+                        {(
+                          [
+                            ["startDate", "Ngày vào làm", undefined, d.endDate || undefined],
+                            ["endDate", "Ngày nghỉ việc", d.startDate || undefined, undefined],
+                          ] as const
+                        ).map(([key, label, min, max]) => (
+                          <label key={key} className="block min-w-0">
+                            <FieldLabel
+                              hint={
+                                d[key] ? (
+                                  <button type="button" onClick={() => set(key, "")} className="underline hover:text-slate-600">
+                                    xoá
+                                  </button>
+                                ) : undefined
+                              }
+                            >
+                              {label}
+                            </FieldLabel>
+                            <input
+                              type="date"
+                              className={`${inputClass} w-full min-w-0`}
+                              value={d[key]}
+                              min={min}
+                              max={max}
+                              onChange={(e) => set(key, e.target.value)}
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                    {showPeriod && (
+                      <p className="text-xs text-slate-400">
+                        Bỏ trống = làm từ đầu tháng / vẫn đang làm. Ngày ngoài khoảng này không xếp ca và không tính định mức.
+                      </p>
+                    )}
+                  </SheetSection>
+
+                  <SheetSection title="Nghỉ phép / nghỉ không lương">
+                    <p className="text-xs text-slate-500">
+                      Không xếp ca trong khoảng này (gồm cả ngày đầu và cuối), được phép kéo qua nhiều tháng (VD 21.10.–21.11.).
+                      Giờ mục tiêu mỗi tháng tự giảm theo số ngày mở cửa bị nghỉ trong tháng đó.
+                    </p>
+                    {d.vacations.map((v, i) => (
+                      <div key={i} className="flex flex-wrap items-end gap-2">
+                        <label className="text-xs text-slate-600">
+                          Từ ngày
+                          <input aria-label={`Urlaub ${i + 1} từ ngày`} type="date" className={`${inputClass} block w-40`} value={v.start}
+                            onChange={(e) => set("vacations", d.vacations.map((x, j) => (j === i ? { ...x, start: e.target.value } : x)))} />
+                        </label>
+                        <label className="text-xs text-slate-600">
+                          Đến ngày
+                          <input aria-label={`Urlaub ${i + 1} đến ngày`} type="date" className={`${inputClass} block w-40`} value={v.end}
+                            onChange={(e) => set("vacations", d.vacations.map((x, j) => (j === i ? { ...x, end: e.target.value } : x)))} />
+                        </label>
+                        <label className="flex items-center gap-1.5 pb-2 text-xs text-slate-600">
+                          <input type="checkbox" checked={!!v.unpaid}
+                            onChange={(e) => set("vacations", d.vacations.map((x, j) => (j === i ? { ...x, unpaid: e.target.checked || undefined } : x)))} />
+                          Không lương
+                        </label>
+                        <button type="button" className="p-2 text-sm text-rose-600" onClick={() => set("vacations", d.vacations.filter((_, j) => j !== i))}>
+                          Xoá
+                        </button>
+                      </div>
+                    ))}
+                    <button type="button" className="text-sm text-sky-700" onClick={() => set("vacations", [...d.vacations, { start: "", end: "" }])}>
+                      + Thêm kỳ nghỉ
+                    </button>
+                    {vacationBad && <p className="text-xs text-rose-600">Chọn đủ ngày; ngày kết thúc phải từ ngày bắt đầu trở đi.</p>}
+                  </SheetSection>
+
+                  <SheetSection title="Ngày nghỉ cố định">
+                    <DayButtons selected={d.daysOff} onToggle={(day) => setD((prev) => ({ ...prev, daysOff: toggle(prev.daysOff, day) }))} />
+                    <p className="text-xs text-slate-400">
+                      {d.daysOff.length === 0
+                        ? "Không chọn = làm được mọi ngày tiệm mở. Ngày tiệm đóng cửa thì không cần chọn."
+                        : d.daysOff.length === 7
+                          ? "Không thể nghỉ cả 7 ngày — sẽ không lưu ngày nghỉ cố định."
+                          : `Không xếp ca vào ${WEEKDAY_ORDER.filter((x) => d.daysOff.includes(x)).map((x) => WEEKDAY_SHORT_VI[x]).join(", ")}.`}
+                    </p>
+                  </SheetSection>
+
                   <SheetSection title="Hợp đồng">
                     <div>
                       <FieldLabel>Hợp đồng theo</FieldLabel>
@@ -730,42 +822,6 @@ function EmployeeSheet({
                         ))}
                       </div>
                     </div>
-                  </SheetSection>
-
-                  <SheetSection title="Nghỉ phép (Urlaub)">
-                    <p className="text-xs text-slate-500">Không xếp ca trong khoảng này, gồm cả ngày đầu và cuối.</p>
-                    {d.vacations.map((v, i) => (
-                      <div key={i} className="flex flex-wrap items-end gap-2">
-                        <label className="text-xs text-slate-600">
-                          Từ ngày
-                          <input aria-label={`Urlaub ${i + 1} từ ngày`} type="date" className={`${inputClass} block w-40`} value={v.start}
-                            onChange={(e) => set("vacations", d.vacations.map((x, j) => (j === i ? { ...x, start: e.target.value } : x)))} />
-                        </label>
-                        <label className="text-xs text-slate-600">
-                          Đến ngày
-                          <input aria-label={`Urlaub ${i + 1} đến ngày`} type="date" className={`${inputClass} block w-40`} value={v.end}
-                            onChange={(e) => set("vacations", d.vacations.map((x, j) => (j === i ? { ...x, end: e.target.value } : x)))} />
-                        </label>
-                        <button type="button" className="p-2 text-sm text-rose-600" onClick={() => set("vacations", d.vacations.filter((_, j) => j !== i))}>
-                          Xoá
-                        </button>
-                      </div>
-                    ))}
-                    <button type="button" className="text-sm text-sky-700" onClick={() => set("vacations", [...d.vacations, { start: "", end: "" }])}>
-                      + Thêm kỳ nghỉ
-                    </button>
-                    {vacationBad && <p className="text-xs text-rose-600">Chọn đủ ngày; ngày kết thúc phải từ ngày bắt đầu trở đi.</p>}
-                  </SheetSection>
-
-                  <SheetSection title="Ngày nghỉ cố định">
-                    <DayButtons selected={d.daysOff} onToggle={(day) => setD((prev) => ({ ...prev, daysOff: toggle(prev.daysOff, day) }))} />
-                    <p className="text-xs text-slate-400">
-                      {d.daysOff.length === 0
-                        ? "Không chọn = làm được mọi ngày tiệm mở. Ngày tiệm đóng cửa thì không cần chọn."
-                        : d.daysOff.length === 7
-                          ? "Không thể nghỉ cả 7 ngày — sẽ không lưu ngày nghỉ cố định."
-                          : `Không xếp ca vào ${WEEKDAY_ORDER.filter((x) => d.daysOff.includes(x)).map((x) => WEEKDAY_SHORT_VI[x]).join(", ")}.`}
-                    </p>
                   </SheetSection>
 
                   <SheetSection title="Luật riêng (mềm – xếp theo khi được)">
@@ -915,53 +971,6 @@ function EmployeeSheet({
                     </SheetSection>
                   )}
 
-                  <SheetSection title="Thời gian làm việc">
-                    {!showPeriod ? (
-                      <button
-                        type="button"
-                        onClick={() => setShowPeriod(true)}
-                        className="w-full rounded-lg border border-dashed border-slate-300 px-3 py-2.5 text-left text-sm text-slate-600"
-                      >
-                        + Ngày vào làm / nghỉ việc <span className="text-slate-400">(nếu không làm cả tháng)</span>
-                      </button>
-                    ) : (
-                      <div className="grid grid-cols-2 gap-3">
-                        {(
-                          [
-                            ["startDate", "Ngày vào làm", undefined, d.endDate || undefined],
-                            ["endDate", "Ngày nghỉ việc", d.startDate || undefined, undefined],
-                          ] as const
-                        ).map(([key, label, min, max]) => (
-                          <label key={key} className="block min-w-0">
-                            <FieldLabel
-                              hint={
-                                d[key] ? (
-                                  <button type="button" onClick={() => set(key, "")} className="underline hover:text-slate-600">
-                                    xoá
-                                  </button>
-                                ) : undefined
-                              }
-                            >
-                              {label}
-                            </FieldLabel>
-                            <input
-                              type="date"
-                              className={`${inputClass} w-full min-w-0`}
-                              value={d[key]}
-                              min={min}
-                              max={max}
-                              onChange={(e) => set(key, e.target.value)}
-                            />
-                          </label>
-                        ))}
-                      </div>
-                    )}
-                    {showPeriod && (
-                      <p className="text-xs text-slate-400">
-                        Bỏ trống = làm từ đầu tháng / vẫn đang làm. Ngày ngoài khoảng này không xếp ca và không tính định mức.
-                      </p>
-                    )}
-                  </SheetSection>
                 </fieldset>
               </div>
             )}

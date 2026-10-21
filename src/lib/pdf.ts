@@ -17,7 +17,7 @@
 // (siehe T()) – bewusst ohne Diakritika, so gewünscht.
 // ============================================================================
 
-import { isOnVacation } from "./availability";
+import { isOnVacation, leaveLabel } from "./availability";
 import { jsPDF } from "jspdf";
 import type { Employee, Schedule, Shift } from "../types";
 import {
@@ -232,7 +232,7 @@ function stundenzettelRowsFor(
         ? closed.note || "Betriebsruhe"
         : holiday
           ? `Frei (Feiertag: ${holiday})`
-          : isOnVacation(employee, d) && wd !== "Sonntag" ? "Urlaub (Stunden offen)" : "Frei";
+          : leaveLabel(employee, d) && wd !== "Sonntag" ? leaveLabel(employee, d)! : "Frei";
       return { shaded, shiftCount: 0, cells: [datum, "", "", "", "0,00", bemerkung] };
     }
 
@@ -399,21 +399,20 @@ function drawStundenzettel(
   // Zusammenfassung + Unterschriften: FESTE Positionen im reservierten Band am
   // Seitenende – unabhängig davon, wo die Tabelle endet (keine Kollision mehr).
   const pageH = doc.internal.pageSize.getHeight();
+  const pageW = doc.internal.pageSize.getWidth();
   const summaryY = pageH - 30;
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8.5);
-  doc.setTextColor(...MUTED);
-  doc.text("Gesamtstunden", MARGIN, summaryY);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  doc.setTextColor(...INK);
-  doc.text(`${minutesToDecimalHours(totalMinutes)} h`, MARGIN, summaryY + 5);
-
-  drawSignatures(
-    doc,
-    ["Unterschrift Mitarbeiter", "Unterschrift Arbeitgeber", "Datum"],
-    pageH - 14,
-  );
+  const col3 = (pageW - 2 * MARGIN) / 3;
+  // Leere Schreiblinien wie bei Thienlong – der Chef trägt die Stunden von Hand ein.
+  ["Gesamtstunden", "Nachtstunden (ab 20 Uhr)", "Sonntagsstunden"].forEach((label, i) => {
+    const x = MARGIN + i * col3;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(...MUTED);
+    doc.text(T(label), x, summaryY);
+    doc.setDrawColor(...GRID);
+    doc.setLineWidth(0.2);
+    doc.line(x, summaryY + 7, x + 40, summaryY + 7);
+  });
 }
 
 /**

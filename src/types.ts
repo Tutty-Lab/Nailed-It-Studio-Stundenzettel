@@ -28,7 +28,12 @@ export type PayrollRecord = {
   manualHours?: boolean;
 };
 
-export type Vacation = { start: string; end: string };
+/**
+ * Nghỉ một khoảng ngày (có thể qua nhiều tháng, VD 21.10.–21.11.).
+ * unpaid = nghỉ không lương; thiếu = Urlaub (nghỉ phép có lương).
+ * Cả hai: không xếp ca, giờ mục tiêu mỗi tháng giảm theo số ngày nghỉ.
+ */
+export type Vacation = { start: string; end: string; unpaid?: boolean };
 
 /** „Khung giờ ưu tiên": an diesen Wochentagen möglichst in diesem Fenster arbeiten. */
 export type PreferredWindow = {

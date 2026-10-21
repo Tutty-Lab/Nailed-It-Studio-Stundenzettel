@@ -44,6 +44,18 @@ und zählt dann zur Besetzung.
   „Tạo lịch" legt für noch nicht gespeicherte Personen automatisch den
   aktuellen Stand ab. Spätere Änderungen verändern frühere Monate nicht.
 
+## Urlaub / Austritt / Eintritt über Monatsgrenzen
+
+- Urlaub (bezahlt) oder „Không lương" (unbezahlt) als Zeitraum, darf über
+  Monate gehen (z. B. 21.10.–21.11.). An diesen Tagen kein Dienst.
+- Soll je Monat = volles Monats-Soll × (offene Tage, an denen die Person da ist
+  ÷ offene Tage des Monats), auf 30 Minuten gerundet. Beispiel 80 h,
+  Urlaub 21.10.–21.11.2026: Oktober 16/25 Tage → 51 h, November 7/24 → 23,5 h.
+- Eintritt/Austritt mitten im Monat wird genauso anteilig gerechnet.
+- Fehlen dadurch Stunden für Öffnen/Schließen, meldet das Dashboard die
+  Lücken; dann im Monats-Lohnfenster Stunden anderer erhöhen oder die
+  Inhaberin von Hand eintragen. Auswertung: `docs/danh-gia-12-thang.md`.
+
 ## Ablauf
 
 1. Monat oben wählen, Lohn/Stunden prüfen und speichern.
@@ -52,7 +64,9 @@ und zählt dann zur Besetzung.
    umgekehrt, erscheinen Warnungen im Dashboard.
 3. Dienste von Hand anpassen (Zelle antippen), dann im Tab „Chấm công" drucken
    bzw. sperren.
-4. **Ist-Stunden**: im Dienst „Giờ thực tế đã chấm công" eintragen. Geplante
+4. Stundenzettel-PDF wie Thienlong: Gesamtstunden, Nachtstunden und
+   Sonntagsstunden als leere Felder zum Ausfüllen von Hand.
+5. **Ist-Stunden**: im Dienst „Giờ thực tế đã chấm công" eintragen. Geplante
    Stunden gelten nie als gearbeitet. „Tổng kết tháng" zeigt Arbeitstage,
    geplante und tatsächlich erfasste Stunden.
 

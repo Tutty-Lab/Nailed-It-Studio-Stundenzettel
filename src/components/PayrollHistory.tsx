@@ -4,7 +4,7 @@ import type { Employee } from "../types";
 import { monthlyTargetMinutesFor } from "../lib/contract";
 import { hoursFromPay, recordHours } from "../lib/payRecord";
 import { monthKey, upsertRecord } from "../lib/history";
-import { isEmployedOn } from "../lib/availability";
+import { isAvailableDay, isEmployedOn } from "../lib/availability";
 
 const num = (text: string) => Number(text.trim().replace(",", "."));
 const txt = (n: number | undefined) => (n == null ? "" : String(Math.round(n * 100) / 100).replace(".", ","));
@@ -29,7 +29,8 @@ export function PayrollHistory({ store }: { store: UseScheduleReturn }) {
   const rowOf = (e: Employee): Row => {
     const r = e.payrollRecords?.find((x) => x.month === month);
     if (r) return { salary: txt(r.grossEuro), wage: txt(r.hourlyWage), hours: txt(recordHours(r)), manual: !!r.manualHours };
-    const minutes = monthlyTargetMinutesFor(e, openDates, schedule.workHours);
+    // Giờ CẢ THÁNG; vào/thôi làm và ngày nghỉ được trừ ở cột „Sẽ xếp".
+    const minutes = monthlyTargetMinutesFor({ ...e, startDate: undefined, endDate: undefined, vacations: [] }, openDates, schedule.workHours);
     return {
       salary: txt(e.monthlySalary),
       wage: txt(e.hourlyWage),
@@ -91,7 +92,8 @@ export function PayrollHistory({ store }: { store: UseScheduleReturn }) {
           Lương & giờ mục tiêu tháng {month.slice(5)}/{month.slice(0, 4)}
         </h3>
         <p className="my-2 text-xs text-slate-600">
-          Chỉ áp dụng cho tháng này. Có lương tháng và lương giờ thì giờ = lương tháng ÷ lương giờ; sửa thẳng ô giờ
+          Giờ mục tiêu là giờ của <b>cả tháng</b>; nghỉ phép, nghỉ không lương hoặc vào/thôi làm giữa tháng được trừ theo số
+          ngày mở cửa (cột „Sẽ xếp"). Chỉ áp dụng cho tháng này. Có lương tháng và lương giờ thì giờ = lương tháng ÷ lương giờ; sửa thẳng ô giờ
           thì dùng đúng số đã nhập để xếp ca. Đây là giờ <b>xếp lịch</b>, không phải giờ thực tế đã làm.
         </p>
         <div className="overflow-x-auto">
@@ -102,12 +104,16 @@ export function PayrollHistory({ store }: { store: UseScheduleReturn }) {
                 <th className="p-1.5 text-right">Lương tháng €</th>
                 <th className="p-1.5 text-right">Lương giờ €/h</th>
                 <th className="p-1.5 text-right">Giờ mục tiêu</th>
+                <th className="p-1.5 text-right" title="Sau khi trừ ngày nghỉ / ngày vào–thôi làm">Sẽ xếp</th>
               </tr>
             </thead>
             <tbody>
               {staff.map((e) => {
                 const r = rows[e.id] ?? rowOf(e);
                 const saved = e.payrollRecords?.some((x) => x.month === month);
+                const da = openDates.filter((d) => isAvailableDay(e, d)).length;
+                const share = openDates.length ? da / openDates.length : 1;
+                const willPlan = Math.round(((num(r.hours) || 0) * share) * 2) / 2;
                 return (
                   <tr key={e.id} className="border-b border-slate-100">
                     <td className="p-1.5">
@@ -126,6 +132,11 @@ export function PayrollHistory({ store }: { store: UseScheduleReturn }) {
                       <input disabled={locked} inputMode="decimal" className={inputClass} value={r.hours}
                         aria-label={`Giờ mục tiêu ${e.name}`} onChange={(ev) => edit(e.id, { hours: ev.target.value })} />
                     </td>
+                    <td className={`p-1.5 text-right whitespace-nowrap ${share < 1 ? "text-amber-700" : "text-slate-500"}`}
+                      title={share < 1 ? `Đi làm ${da}/${openDates.length} ngày mở cửa (nghỉ phép hoặc vào/thôi làm giữa tháng)` : undefined}>
+                      {hrs(willPlan)}
+                      {share < 1 && <span className="block text-[10px]">{da}/{openDates.length} ngày</span>}
+                    </td>
                   </tr>
                 );
               })}
@@ -134,6 +145,7 @@ export function PayrollHistory({ store }: { store: UseScheduleReturn }) {
               <tr>
                 <td className="p-1.5 text-xs text-slate-500" colSpan={3}>Tổng giờ mục tiêu</td>
                 <td className="p-1.5 text-right font-medium">{hrs(total)}</td>
+                <td />
               </tr>
             </tfoot>
           </table>

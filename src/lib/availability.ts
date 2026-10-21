@@ -50,6 +50,17 @@ export function isOnVacation(employee: Employee, isoDate: string): boolean {
   return (employee.vacations ?? []).some((leave) => leave.start <= isoDate && isoDate <= leave.end);
 }
 
+/** Còn đi làm được ngày này (đã vào làm, chưa nghỉ việc, không nghỉ phép). */
+export function isAvailableDay(employee: Employee, isoDate: string): boolean {
+  return isEmployedOn(employee, isoDate) && !isOnVacation(employee, isoDate);
+}
+
+/** Ghi chú cho ngày nghỉ: Urlaub (có lương) hay nghỉ không lương. */
+export function leaveLabel(employee: Employee, isoDate: string): string | null {
+  const leave = (employee.vacations ?? []).find((l) => l.start <= isoDate && isoDate <= l.end);
+  return leave ? (leave.unpaid ? "Unbezahlt frei" : "Urlaub") : null;
+}
+
 export function mayWorkOn(employee: Employee, isoDate: string): boolean {
   return worksOnWeekday(employee, isoDate) && isEmployedOn(employee, isoDate) && !isOnVacation(employee, isoDate);
 }
