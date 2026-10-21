@@ -784,14 +784,23 @@ export async function savePdfAtLocation(blob: Blob, filename: string): Promise<"
     deliver(blob, filename);
     return "downloaded";
   }
+  let handle;
   try {
-    const handle = await browser.showSaveFilePicker({ suggestedName: filename, types: [{ description: "PDF", accept: { "application/pdf": [".pdf"] } }] });
+    handle = await browser.showSaveFilePicker({ suggestedName: filename, types: [{ description: "PDF", accept: { "application/pdf": [".pdf"] } }] });
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") return "cancelled";
+    // Picker bị chặn (iframe, trình duyệt trong app, chính sách) -> tải xuống thường.
+    deliver(blob, filename);
+    return "downloaded";
+  }
+  try {
     const writable = await handle.createWritable();
     await writable.write(blob);
     await writable.close();
     return "saved";
-  } catch (err) {
-    if (err instanceof Error && err.name === "AbortError") return "cancelled";
-    throw err;
+  } catch {
+    // createWritable bị từ chối („not allowed by the user agent…") -> tải xuống thường.
+    deliver(blob, filename);
+    return "downloaded";
   }
 }

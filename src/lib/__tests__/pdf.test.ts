@@ -141,3 +141,14 @@ describe("choose PDF save location", () => {
     expect(await savePdfAtLocation(new Blob(), "a.pdf")).toBe("cancelled");
   });
 });
+
+describe("PDF save fallback", () => {
+  it("createWritable bị chặn -> tải xuống thường thay vì báo lỗi", async () => {
+    const err = Object.assign(new Error("The request is not allowed by the user agent"), { name: "NotAllowedError" });
+    const picker = vi.fn(async () => ({ createWritable: async () => { throw err; } }));
+    vi.stubGlobal("window", { showSaveFilePicker: picker });
+    const { savePdfAtLocation } = await import("../pdf");
+    expect(await savePdfAtLocation(new Blob(["%PDF"]), "a.pdf")).toBe("downloaded");
+    vi.unstubAllGlobals();
+  });
+});
