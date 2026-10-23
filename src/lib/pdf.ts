@@ -401,12 +401,10 @@ function drawStundenzettel(
   // Zusammenfassung + Unterschriften: FESTE Positionen im reservierten Band am
   // Seitenende – unabhängig davon, wo die Tabelle endet (keine Kollision mehr).
   const pageH = doc.internal.pageSize.getHeight();
-  const pageW = doc.internal.pageSize.getWidth();
   const summaryY = pageH - 30;
-  const col3 = (pageW - 2 * MARGIN) / 3;
   // Leere Schreiblinien wie bei Thienlong – der Chef trägt die Stunden von Hand ein.
-  ["Gesamtstunden", "Nachtstunden (ab 20 Uhr)", "Sonntagsstunden"].forEach((label, i) => {
-    const x = MARGIN + i * col3;
+  ["Gesamtstunden"].forEach((label) => {
+    const x = MARGIN;
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8.5);
     doc.setTextColor(...MUTED);
@@ -475,9 +473,7 @@ export async function buildStundenzettelPdfFor(
 // ── Übersicht (Seite 1) ─────────────────────────────────────────────────────
 
 /**
- * Seite 1 jeder PDF: je Mitarbeiter Gesamt-, Nacht- (ab 20 Uhr) und
- * Sonntagsstunden – vom Programm berechnet. Die Einzelblätter danach lassen
- * Nacht/Sonntag leer, damit der Betrieb selbst abgleicht.
+ * Seite 1 jeder PDF: Gesamtstunden je Mitarbeiter.
  */
 function drawUebersicht(
   doc: jsPDF,
@@ -490,12 +486,9 @@ function drawUebersicht(
   let y = drawHeader(doc, "Stundenübersicht", schedule, periodLabel) + 2;
   const left = MARGIN;
   const right = pageW - MARGIN;
-  const numW = 46;
   const cols = [
     { label: "Mitarbeiter", x: left, align: "left" as const },
-    { label: "Gesamtstunden", x: right - 2 * numW, align: "right" as const },
-    { label: "Nachtstunden (ab 20 Uhr)", x: right - numW, align: "right" as const },
-    { label: "Sonntagsstunden", x: right, align: "right" as const },
+    { label: "Gesamtstunden", x: right, align: "right" as const },
   ];
   const rowH = 6.5;
   const line = (yy: number, color = DIVIDER, width = 0.2) => {
@@ -525,8 +518,6 @@ function drawUebersicht(
     sum.sunday += stats.sunday;
     cell(employee.name, cols[0], y + 4.3);
     cell(minutesToDecimalHours(stats.total), cols[1], y + 4.3);
-    cell(minutesToDecimalHours(stats.night), cols[2], y + 4.3);
-    cell(minutesToDecimalHours(stats.sunday), cols[3], y + 4.3);
     y += rowH;
     line(y);
   }
@@ -534,15 +525,12 @@ function drawUebersicht(
   doc.setFont("helvetica", "bold");
   cell("Summe", cols[0], y + 4.3);
   cell(minutesToDecimalHours(sum.total), cols[1], y + 4.3);
-  cell(minutesToDecimalHours(sum.night), cols[2], y + 4.3);
-  cell(minutesToDecimalHours(sum.sunday), cols[3], y + 4.3);
   y += rowH + 4;
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.5);
   doc.setTextColor(...MUTED);
-  const note = "Nachtstunden: bezahlte Arbeitszeit ab 20:00 Uhr (ohne Pause), ohne Sonntage. Sonntagsstunden: gesamte bezahlte Arbeitszeit an Sonntagen (nicht doppelt als Nacht gezählt). Angaben in Stunden.";
-  doc.text(doc.splitTextToSize(T(note), right - left), left, y);
+  doc.text("Angaben in Stunden.", left, y);
 }
 
 // ── Datei ausliefern ─────────────────────────────────────────────────────────

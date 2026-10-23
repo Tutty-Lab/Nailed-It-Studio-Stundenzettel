@@ -929,7 +929,7 @@ export function generateWeeklySchedule(input: WeeklyInput, existing: Shift[] = [
       weekStart: week.weekStart,
       openDays: (byWeek.get(week.weekStart) ?? []).filter((date) => mayWorkOn(employee, date)).length,
     }));
-    // Anteiliges Monats-Soll, wenn Eintritt oder Austritt in den Monat fallen.
+    // Volles Monats-Soll auf die verfügbaren Tage verteilen.
     return [employee.id, weeklyTargetMinutes(monthlyTargetMinutesFor(employee, openDates, input.workHours), empWeekInfo)] as const;
   }));
   // Ein Wochenbudget unter der Mindestschichtlänge (Monatsrand: ein oder zwei

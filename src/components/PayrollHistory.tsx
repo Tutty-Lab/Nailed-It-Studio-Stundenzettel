@@ -29,7 +29,7 @@ export function PayrollHistory({ store }: { store: UseScheduleReturn }) {
   const rowOf = (e: Employee): Row => {
     const r = e.payrollRecords?.find((x) => x.month === month);
     if (r) return { salary: txt(r.grossEuro), wage: txt(r.hourlyWage), hours: txt(recordHours(r)), manual: !!r.manualHours };
-    // Giờ CẢ THÁNG; vào/thôi làm và ngày nghỉ được trừ ở cột „Sẽ xếp".
+    // Giờ cả tháng giữ nguyên; ngày nghỉ chỉ giới hạn ngày được xếp ca.
     const minutes = monthlyTargetMinutesFor({ ...e, startDate: undefined, endDate: undefined, vacations: [] }, openDates, schedule.workHours);
     return {
       salary: txt(e.monthlySalary),
@@ -92,8 +92,7 @@ export function PayrollHistory({ store }: { store: UseScheduleReturn }) {
           Lương & giờ mục tiêu tháng {month.slice(5)}/{month.slice(0, 4)}
         </h3>
         <p className="my-2 text-xs text-slate-600">
-          Giờ mục tiêu là giờ của <b>cả tháng</b>; nghỉ phép, nghỉ không lương hoặc vào/thôi làm giữa tháng được trừ theo số
-          ngày mở cửa (cột „Sẽ xếp"). Chỉ áp dụng cho tháng này. Có lương tháng và lương giờ thì giờ = lương tháng ÷ lương giờ; sửa thẳng ô giờ
+          Giờ mục tiêu là giờ của <b>cả tháng</b>, được xếp đủ vào các ngày còn đi làm; ngày nghỉ và ngày vào/thôi làm không tự giảm giờ. Chỉ áp dụng cho tháng này. Có lương tháng và lương giờ thì giờ = lương tháng ÷ lương giờ; sửa thẳng ô giờ
           thì dùng đúng số đã nhập để xếp ca. Đây là giờ <b>xếp lịch</b>, không phải giờ thực tế đã làm.
         </p>
         <div className="overflow-x-auto">
@@ -104,7 +103,7 @@ export function PayrollHistory({ store }: { store: UseScheduleReturn }) {
                 <th className="p-1.5 text-right">Lương tháng €</th>
                 <th className="p-1.5 text-right">Lương giờ €/h</th>
                 <th className="p-1.5 text-right">Giờ mục tiêu</th>
-                <th className="p-1.5 text-right" title="Sau khi trừ ngày nghỉ / ngày vào–thôi làm">Sẽ xếp</th>
+                <th className="p-1.5 text-right" title="Giờ mục tiêu cần xếp trong các ngày còn đi làm">Sẽ xếp</th>
               </tr>
             </thead>
             <tbody>

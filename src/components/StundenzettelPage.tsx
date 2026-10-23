@@ -211,10 +211,8 @@ export function StundenzettelPage({
       </table>
 
       {/* Leere Felder wie bei Thienlong – der Chef trägt die Stunden von Hand ein. */}
-      <div className="mt-3 grid grid-cols-3 gap-4 text-[12px]">
+      <div className="mt-3 grid grid-cols-1 gap-4 text-[12px]">
         <HandField label="Gesamtstunden" />
-        <HandField label="Nachtstunden (ab 20 Uhr)" />
-        <HandField label="Sonntagsstunden" />
       </div>
     </div>
   );
@@ -261,8 +259,7 @@ function Td({
 }
 
 /**
- * Seite 1 der Stundenzettel-PDF als Vorschau: je Mitarbeiter Gesamt-, Nacht-
- * (ab 20 Uhr, ohne Sonntag) und Sonntagsstunden – gleiche Zahlen wie pdf.ts.
+ * Vorschau der Gesamtstunden je Mitarbeiter, wie in pdf.ts.
  */
 export function StundenUebersichtPage({
   schedule,
@@ -297,8 +294,6 @@ export function StundenUebersichtPage({
           <tr className="bg-slate-100 border-b border-slate-600">
             <th className="px-2 py-1.5 text-left font-semibold">Mitarbeiter</th>
             <th className={`${num} font-semibold`}>Gesamtstunden</th>
-            <th className={`${num} font-semibold`}>Nachtstunden (ab 20 Uhr)</th>
-            <th className={`${num} font-semibold`}>Sonntagsstunden</th>
           </tr>
         </thead>
         <tbody>
@@ -306,8 +301,6 @@ export function StundenUebersichtPage({
             <tr key={employee.id} className="border-b border-slate-200">
               <td className="px-2 py-1.5">{employee.name}</td>
               <td className={num}>{minutesToDecimalHours(stats.total)}</td>
-              <td className={num}>{minutesToDecimalHours(stats.night)}</td>
-              <td className={num}>{minutesToDecimalHours(stats.sunday)}</td>
             </tr>
           ))}
         </tbody>
@@ -315,14 +308,11 @@ export function StundenUebersichtPage({
           <tr className="border-t border-slate-600 font-semibold">
             <td className="px-2 py-1.5">Summe</td>
             <td className={num}>{minutesToDecimalHours(sum.total)}</td>
-            <td className={num}>{minutesToDecimalHours(sum.night)}</td>
-            <td className={num}>{minutesToDecimalHours(sum.sunday)}</td>
           </tr>
         </tfoot>
       </table>
       <p className="mt-3 text-[10px] text-slate-500">
-        Nachtstunden: bezahlte Arbeitszeit ab 20:00 Uhr (ohne Pause), ohne Sonntage. Sonntagsstunden: gesamte
-        bezahlte Arbeitszeit an Sonntagen (nicht doppelt als Nacht gezählt). Angaben in Stunden.
+        Angaben in Stunden.
       </p>
     </div>
   );

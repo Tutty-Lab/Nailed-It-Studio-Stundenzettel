@@ -23,7 +23,7 @@ import type { Employee } from "../types";
 import { DAY_WEIGHTS, parseIsoDate, weekdayKeyOf, type WeekdayKey } from "./demand";
 import { weekStartOf } from "./weeks";
 import { DEFAULT_WORK_HOURS, type WorkHoursConfig } from "./workHours";
-import { isAvailableDay, isEmployedOn } from "./availability";
+import { isEmployedOn } from "./availability";
 
 /** ISO "yyyy-MM-dd" + n Tage (UTC, ohne Zeitzonen-Verschiebung). */
 function addDaysIso(isoDate: string, days: number): string {
@@ -121,34 +121,7 @@ function weekPartMinutes(weeklyMinutes: number, week: WeekShare): number {
   return Math.min(weeklyMinutes * week.share, week.days * MAX_PAID_MINUTES_PER_DAY);
 }
 
-/**
- * Monats-Soll dieser Person in Minuten: Summe der Wochenteile (respektiert das
- * Startdatum und die 9-h-Tagesgrenze). Ohne Wochenvertrag bleibt es beim direkt
- * eingetragenen targetMinutes. workHours = Wochenplan des Ladens (Standard:
- * Vorgabe), damit Anzeige, Prüfung und Scheduler dieselbe Zahl rechnen.
- */
-/**
- * MONATSvertrag anteilig, wenn jemand mitten im Monat kommt oder geht.
- *
- * Im Nagelstudio wechselt das Team häufig: wer am 15. anfängt, arbeitet im
- * ersten Monat nur die halbe Zeit und bekommt auch nur das halbe Soll – genau
- * so steht es auf der Lohnabrechnung (680 EUR statt 1.200 EUR im Eintrittsmonat).
- * Gerechnet wird über die OFFENEN Tage, nicht über Kalendertage, und auf die
- * halbe Stunde gerundet, damit der Planer die Zahl exakt treffen kann.
- */
-/**
- * Anteil eines Monats-Solls: offene Tage, an denen die Person da ist (nach
- * Eintritt, vor Austritt, NICHT im Urlaub/unbezahlt frei) ÷ alle offenen Tage.
- * Ein Urlaub 21.10.–21.11. kürzt so Oktober und November je für sich.
- */
-function proratedMonthly(emp: Employee, openDates: readonly string[], full = emp.targetMinutes): number {
-  if (openDates.length === 0) return full;
-  const da = openDates.filter((date) => isAvailableDay(emp, date)).length;
-  if (da >= openDates.length) return full;
-  const anteil = (full * da) / openDates.length;
-  return Math.max(0, Math.round(anteil / SCHEDULE_SLOT_MINUTES) * SCHEDULE_SLOT_MINUTES);
-}
-
+/** Monthly hours remain fixed; availability only limits where shifts may be placed. */
 export function monthlyTargetMinutesFor(
   emp: Employee,
   openDates: readonly string[],
@@ -156,8 +129,8 @@ export function monthlyTargetMinutesFor(
 ): number {
   if (emp.isOwner) return 0;
   const record = emp.payrollRecords?.find((r) => r.month === openDates[0]?.slice(0, 7));
-  if (record) return proratedMonthly(emp, openDates, Math.round(recordHours(record) * 60));
-  if (emp.weeklyHours == null) return proratedMonthly(emp, openDates);
+  if (record) return Math.round(recordHours(record) * 60);
+  if (emp.weeklyHours == null) return emp.targetMinutes;
   const weekly = emp.weeklyHours * 60;
   return Math.max(0, Math.round(weekSharesFor(emp, openDates, workHours).reduce((sum, week) => sum + weekPartMinutes(weekly, week), 0)));
 }

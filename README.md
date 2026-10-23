@@ -48,10 +48,11 @@ und zählt dann zur Besetzung.
 
 - Urlaub (bezahlt) oder „Không lương" (unbezahlt) als Zeitraum, darf über
   Monate gehen (z. B. 21.10.–21.11.). An diesen Tagen kein Dienst.
-- Soll je Monat = volles Monats-Soll × (offene Tage, an denen die Person da ist
-  ÷ offene Tage des Monats), auf 30 Minuten gerundet. Beispiel 80 h,
-  Urlaub 21.10.–21.11.2026: Oktober 16/25 Tage → 51 h, November 7/24 → 23,5 h.
-- Eintritt/Austritt mitten im Monat wird genauso anteilig gerechnet.
+- Das Monats-Soll bleibt unverändert, auch bei Urlaub, Eintritt oder Austritt.
+  Beispiel: 43 h im Januar, Eintritt am 09.01. → volle 43 h ab 09.01.
+  Urlaub 09.01.–09.02. → Januarstunden vor 09.01., Februarstunden nach 09.02.
+  Reichen die verfügbaren Tage nicht aus, bleibt die Stundenlücke sichtbar.
+- Erstellung und PDF-Ausgabe: Jahre 2026–2030. PDF zeigt nur Gesamtstunden.
 - Fehlen dadurch Stunden für Öffnen/Schließen, meldet das Dashboard die
   Lücken; dann im Monats-Lohnfenster Stunden anderer erhöhen oder die
   Inhaberin von Hand eintragen. Auswertung: `docs/danh-gia-12-thang.md`.

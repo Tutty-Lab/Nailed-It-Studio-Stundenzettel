@@ -31,7 +31,7 @@ export type PayrollRecord = {
 /**
  * Nghỉ một khoảng ngày (có thể qua nhiều tháng, VD 21.10.–21.11.).
  * unpaid = nghỉ không lương; thiếu = Urlaub (nghỉ phép có lương).
- * Cả hai: không xếp ca, giờ mục tiêu mỗi tháng giảm theo số ngày nghỉ.
+ * Cả hai: không xếp ca ngày nghỉ; giữ nguyên giờ mục tiêu tháng.
  */
 export type Vacation = { start: string; end: string; unpaid?: boolean };
 

@@ -152,3 +152,18 @@ describe("PDF save fallback", () => {
     vi.unstubAllGlobals();
   });
 });
+
+
+describe("PDF giờ tổng", () => {
+  it("giữ trang thống kê, từng nhân viên; chỉ hiện Gesamtstunden", async () => {
+    const { buildStundenzettelPdf } = await import("../pdf");
+    const { initialScheduleFor, STORES } = await import("../stores");
+    const schedule = initialScheduleFor(STORES[0]);
+    const doc = await buildStundenzettelPdf(schedule, schedule.employees.slice(0, 1));
+    expect(doc.getNumberOfPages()).toBe(2);
+    const content = doc.internal.pages.flat().join("\n");
+    expect(content).toContain("Gesamtstunden");
+    expect(content).not.toContain("Nachtstunden");
+    expect(content).not.toContain("Sonntagsstunden");
+  });
+});

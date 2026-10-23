@@ -108,17 +108,28 @@ describe("Lohn-/Stundenhistorie je Monat", () => {
   });
 });
 
-describe("Nghỉ qua hai tháng (21.10.–21.11.)", () => {
-  it("giảm giờ mục tiêu từng tháng theo ngày mở cửa còn đi làm, không xếp ca ngày nghỉ", async () => {
+describe("Giữ đủ giờ tháng trong các ngày còn làm được", () => {
+  for (const dates of [
+    { startDate: "2026-01-09" },
+    { vacations: [{ start: "2026-01-09", end: "2026-02-09" }] },
+    { vacations: [{ start: "2026-01-01", end: "2026-01-08" }] },
+  ]) {
+    it(`xếp đủ 43 giờ: ${JSON.stringify(dates)}`, async () => {
+      const { monthlyTargetMinutesFor } = await import("../contract");
+      const { mayWorkOn } = await import("../availability");
+      const employee = { ...schedule.employees[0], payrollRecords: [], targetMinutes: 43 * 60, ...dates };
+      expect(monthlyTargetMinutesFor(employee, openDatesOf(2026, 1), store.workHours)).toBe(43 * 60);
+      const shifts = plan(2026, 1, [employee]);
+      expect(shifts.every((s) => mayWorkOn(employee, s.date))).toBe(true);
+      expect(shifts.reduce((n, s) => n + s.paidMinutes, 0)).toBe(43 * 60);
+    });
+  }
+  it("giữ giờ bảng lương tháng, kể cả nghỉ qua tháng", async () => {
     const { monthlyTargetMinutesFor } = await import("../contract");
-    const viet = { ...schedule.employees.find((e) => e.id === "nailedit-1")!, vacations: [{ start: "2026-10-21", end: "2026-11-21" }] };
-    // Okt: 16 von 25 offenen Tagen, Nov: 7 von 24 – auf 30 Minuten gerundet.
-    expect(monthlyTargetMinutesFor(viet, openDatesOf(2026, 10), store.workHours)).toBe(51 * 60);
-    expect(monthlyTargetMinutesFor(viet, openDatesOf(2026, 11), store.workHours)).toBe(23.5 * 60);
-    const employees = schedule.employees.map((e) => (e.id === viet.id ? viet : e));
-    const oct = plan(2026, 10, employees).filter((s) => s.employeeId === viet.id);
-    expect(oct.some((s) => s.date >= "2026-10-21")).toBe(false);
-    expect(oct.reduce((n, s) => n + s.paidMinutes, 0)).toBe(51 * 60);
+    const employee = { ...schedule.employees[0], vacations: [{ start: "2026-01-09", end: "2026-02-09" }],
+      payrollRecords: [{ month: "2026-01", convertedHours: 43, manualHours: true }] };
+    expect(monthlyTargetMinutesFor(employee, openDatesOf(2026, 1))).toBe(43 * 60);
+    expect(monthlyTargetMinutesFor(employee, openDatesOf(2026, 2))).toBe(employee.targetMinutes);
   });
 });
 
