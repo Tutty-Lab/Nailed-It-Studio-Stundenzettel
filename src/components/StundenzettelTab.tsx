@@ -1,4 +1,5 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { timesheetFingerprint, mustReprintWeeks } from "../lib/timesheetExport";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { UseScheduleReturn } from "../hooks/useSchedule";
 import type { Employee } from "../types";
 import { StundenUebersichtPage, StundenzettelPage } from "./StundenzettelPage";
@@ -18,6 +19,8 @@ import { datesOfMonth } from "../lib/demand";
 import { monthLabel } from "../lib/shiftOps";
 
 /** Dienstplan-Ausdruck (Monat oder eine Woche), evtl. auf eine Person gefiltert. */
+type ReadyPdf = { blob: Blob; filename: string; onSaved?: () => void };
+
 type ScheduleRange = {
   dates: string[];
   title: string;
@@ -85,7 +88,7 @@ export function StundenzettelTab({
   const [pdfError, setPdfError] = useState<string | null>(null);
   /** Trình duyệt nhúng: PDF đã tạo xong, chờ người dùng bấm Lưu / Chia sẻ. */
   // Je Tiệm eine eigene Datei – im eingebetteten Browser je Datei ein Knopf.
-  const [readyPdfs, setReadyPdfs] = useState<{ blob: Blob; filename: string }[]>([]);
+  const [readyPdfs, setReadyPdfs] = useState<ReadyPdf[]>([]);
   const readyPdf = readyPdfs.length > 0;
   const [shareNote, setShareNote] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -120,6 +123,19 @@ export function StundenzettelTab({
   // Dateiname wie vom Betrieb gewünscht: NAILEDIT_MM_JJJJ.pdf (tungUAS, 09.10.2026).
   const pdfName = `${safeFileName(previewStore.schedule.companyName)}_${String(schedule.month).padStart(2, "0")}_${schedule.year}.pdf`;
 
+  const [timesheetRange, setTimesheetRange] = useState("month");
+  const monthKey = `${schedule.year}-${String(schedule.month).padStart(2, "0")}`;
+  const fingerprint = timesheetFingerprint(previewStore.schedule, previewStore.timesheetEmployees);
+  const needsReprint = mustReprintWeeks(previewStore.schedule.timesheetExports?.[monthKey], fingerprint);
+  const [reprintWarning, setReprintWarning] = useState(false);
+  useEffect(() => {
+    setReadyPdfs([]);
+    if (needsReprint) setReprintWarning(true);
+  }, [fingerprint, monthKey, needsReprint]);
+  const selectedWeek = weeks.find((w) => w.weekStart === timesheetRange);
+  const previewDates = selectedWeek?.dates;
+  const previewLabel = selectedWeek ? `Woche ${selectedWeek.label} · ${monthLabel(schedule.year, schedule.month)}` : undefined;
+
   const startPdf = () => {
     setPdfBusy(true);
     setPdfError(null);
@@ -134,7 +150,7 @@ export function StundenzettelTab({
    * Rechner/Chrome/Safari: tải thẳng lần lượt từng file. Trình duyệt nhúng:
    * giữ các file lại, mỗi file một nút Lưu / Chia sẻ.
    */
-  const finishPdfs = async (files: { blob: Blob; filename: string }[]) => {
+  const finishPdfs = async (files: ReadyPdf[]) => {
     // Không tải tự động: người dùng chọn „Chọn nơi lưu PDF" hoặc „Lưu / Chia sẻ".
     setReadyPdfs(files);
   };
@@ -150,15 +166,16 @@ export function StundenzettelTab({
    * Offscreen-Bühne, kein Warten auf Schriften und kein Gerät, auf dem die
    * Tabelle plötzlich anders aussieht.
    */
-  async function doPdf(filename: string, sz?: { dates?: string[]; label?: string }) {
+  async function doPdf(filename: string, sz?: { dates?: string[]; label?: string; weeks?: typeof weeks }) {
     // filename = Muster ohne Tiệm, z. B. Stundenzettel_tat_ca_2026-10.pdf
     if (chosenCount === 0 || pdfBusy) return;
     startPdf();
-    setPdfProgress(chosenCount > 1 ? `1/${chosenCount}` : "");
+    const totalPages = chosenCount * (sz?.weeks?.length ?? 1);
+    setPdfProgress(totalPages > 1 ? `1/${totalPages}` : "");
     // Kurzer Yield, damit „Đang tạo PDF…" zuerst sichtbar wird.
     await new Promise((resolve) => setTimeout(resolve, 0));
     try {
-      const files: { blob: Blob; filename: string }[] = [];
+      const files: ReadyPdf[] = [];
       let done = 0;
       for (const s of stores) {
         const employees = chosenFor(s);
@@ -166,11 +183,13 @@ export function StundenzettelTab({
         const offset = done;
         const doc = await buildStundenzettelPdfFor(
           [{ schedule: s.schedule, employees }],
-          { dates: sz?.dates, periodLabel: sz?.label },
-          (current) => progress(offset + current, chosenCount),
+          { dates: sz?.dates, periodLabel: sz?.label, weeks: sz?.weeks },
+          (current) => progress(offset + current, totalPages),
         );
-        done += employees.length;
-        files.push({ blob: doc.output("blob"), filename: fileFor(s, filename) });
+        done += employees.length * (sz?.weeks?.length ?? 1);
+        const snapshot = timesheetFingerprint(s.schedule, s.timesheetEmployees);
+        files.push({ blob: doc.output("blob"), filename: fileFor(s, filename),
+          onSaved: () => s.markTimesheetSaved(monthKey, snapshot) });
       }
       await finishPdfs(files);
     } catch (err) {
@@ -217,9 +236,10 @@ export function StundenzettelTab({
   }
 
   /** Gọi trực tiếp trong lúc bấm – bảng Chia sẻ cần thao tác người dùng còn "mới". */
-  async function onSharePdf(file: { blob: Blob; filename: string }) {
+  async function onSharePdf(file: ReadyPdf) {
     const result = await sharePdf(file.blob, file.filename);
     if (result === "shared") {
+      file.onSaved?.();
       // Đã lưu/gửi file này – các file tiệm khác vẫn còn nút.
       setReadyPdfs((list) => list.filter((f) => f !== file));
       setShareNote(null);
@@ -295,7 +315,16 @@ export function StundenzettelTab({
     };
   }
 
-  const onPdfStundenzettel = () => void doPdf(pdfName);
+  const exportAllWeeks = () => {
+    setReprintWarning(false);
+    void doPdf(pdfName.replace(".pdf", "_alle_Wochen.pdf"), { weeks });
+  };
+  const onPdfStundenzettel = () => {
+    if (needsReprint) { setReprintWarning(true); return; }
+    if (timesheetRange === "all") { exportAllWeeks(); return; }
+    void doPdf(selectedWeek ? pdfName.replace(".pdf", `_Woche_${selectedWeek.weekStart}.pdf`) : pdfName,
+      selectedWeek ? { dates: selectedWeek.dates, label: previewLabel } : undefined);
+  };
   const onPdfSchedule = () => {
     const range = scheduleRangeFor("month");
     if (range) void doPdfSchedule(range, pdfName);
@@ -319,11 +348,31 @@ export function StundenzettelTab({
 
   return (
     <div className="no-print">
+      {reprintWarning && (
+        <div role="alertdialog" aria-modal="true" aria-labelledby="reprint-title" className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="max-w-lg rounded-xl bg-white p-5 shadow-xl">
+            <h3 id="reprint-title" className="font-bold text-amber-900">Phải in lại toàn bộ chấm công</h3>
+            <p className="my-3 text-sm">Dữ liệu đã thay đổi so với bản chấm công đã lưu. Phải in lại cả {weeks.length} tuần của tháng, thay toàn bộ bản cũ. Không được chỉ in lại một tuần.</p>
+            <button disabled={!canExport} onClick={exportAllWeeks} className="rounded bg-amber-700 px-3 py-2 text-white disabled:opacity-40">Xuất lại tất cả {weeks.length} tuần</button>
+            <button onClick={() => setReprintWarning(false)} className="ml-3 px-3 py-2">Đóng</button>
+          </div>
+        </div>
+      )}
+      {mode === "timesheet" && needsReprint && (
+        <p role="alert" className="mb-3 text-sm text-amber-800">Bản đã lưu không còn khớp. Cần in lại tất cả {weeks.length} tuần.</p>
+      )}
       {/* Eine Zeile: Ansicht links, Bedienung + Xuất PDF rechts. */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         {toolbarLeft}
         {/* Mobile: eigene volle Zeile, Auswahl dehnt sich; ab sm rechts neben dem Umschalter. */}
         <div className="flex w-full min-w-0 items-center gap-2 sm:ml-auto sm:w-auto">
+          {mode === "timesheet" && (
+            <select aria-label="Kỳ chấm công" value={timesheetRange} onChange={(e) => setTimesheetRange(e.target.value)} className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-800 sm:flex-none sm:max-w-64">
+              <option value="month">Cả tháng</option>
+              <option value="all">Tất cả {weeks.length} tuần</option>
+              {weeks.map((w, i) => <option key={w.weekStart} value={w.weekStart}>Tuần {i + 1}: {w.label}</option>)}
+            </select>
+          )}
           {mode === "timesheet" ? (
             <select
               aria-label="Xem trước"
@@ -403,6 +452,7 @@ export function StundenzettelTab({
                   onClick={async () => {
                     try {
                       const result = await savePdfAtLocation(file.blob, file.filename);
+                      if (result !== "cancelled") file.onSaved?.();
                       setShareNote(result === "saved" ? "Đã lưu PDF vào nơi bạn chọn." : result === "cancelled" ? "Đã hủy lưu; PDF vẫn sẵn sàng." : "Đã tải PDF. Trình duyệt này dùng nơi lưu mặc định; bật ‘Hỏi nơi lưu từng tệp’ trong cài đặt Tải xuống của trình duyệt để chọn thư mục.");
                     } catch (err) {
                       setShareNote(`Không lưu được PDF: ${err instanceof Error ? err.message : String(err)}`);
@@ -470,7 +520,7 @@ export function StundenzettelTab({
             <div className="mt-2 rounded border border-amber-300 bg-white px-3 py-2">
               <div className="text-amber-900">
                 Mở khóa lịch tháng này? Bản đã in ở tiệm sẽ không còn khớp với hệ thống. Sau
-                khi sửa, hãy in lại tuần đó và thay bản cũ.
+                khi sửa, phải in lại toàn bộ các tuần của tháng và thay bản cũ.
               </div>
               <div className="mt-2 flex gap-2">
                 <button
@@ -501,14 +551,14 @@ export function StundenzettelTab({
           {previewEmployees.length > 0 && (
             <div className="rounded-lg border border-slate-300 shadow-sm bg-white">
               <FitToWidth>
-                <StundenUebersichtPage schedule={previewStore.schedule} employees={previewEmployees} />
+                <StundenUebersichtPage schedule={previewStore.schedule} employees={previewEmployees} dates={previewDates} periodLabel={previewLabel} />
               </FitToWidth>
             </div>
           )}
           {previewEmployees.map((employee) => (
             <div key={employee.id} className="rounded-lg border border-slate-300 shadow-sm bg-white">
               <FitToWidth>
-                <StundenzettelPage schedule={previewStore.schedule} employee={employee} />
+                <StundenzettelPage schedule={previewStore.schedule} employee={employee} dates={previewDates} periodLabel={previewLabel} />
               </FitToWidth>
             </div>
           ))}

@@ -176,6 +176,7 @@ export type Schedule = {
    * im System exakt dem Papier entsprechen – bei einer Kontrolle wird genau
    * das verglichen. Entsperren geht nur bewusst über die Oberfläche.
    */
+  timesheetExports?: Record<string, { fingerprint: string; savedAt: string }>;
   lockedAt?: string;
   /** Bereits gedruckte Wochen, als ISO-Datum des jeweiligen Montags. */
   printedWeeks?: string[];

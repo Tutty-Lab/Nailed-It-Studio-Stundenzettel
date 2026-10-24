@@ -167,3 +167,24 @@ describe("PDF giờ tổng", () => {
     expect(content).not.toContain("Sonntagsstunden");
   });
 });
+
+
+it("PDF tất cả tuần giữ đủ ngày, mỗi tuần có thống kê và trang từng người", async () => {
+  const { buildStundenzettelPdf } = await import("../pdf");
+  const { initialScheduleFor, STORES } = await import("../stores");
+  const { weeksOfMonth } = await import("../weeks");
+  const schedule = { ...initialScheduleFor(STORES[0]), year: 2026, month: 3 };
+  const weeks = weeksOfMonth(2026, 3);
+  expect(weeks).toHaveLength(6);
+  expect(weeks.flatMap((w) => w.dates)).toHaveLength(31);
+  const doc = await buildStundenzettelPdf(schedule, schedule.employees.slice(0, 1), { weeks });
+  expect(doc.getNumberOfPages()).toBe(12);
+  const { timesheetFingerprint, mustReprintWeeks } = await import("../timesheetExport");
+  const fingerprint = timesheetFingerprint(schedule, schedule.employees);
+  const saved = { fingerprint };
+  expect(mustReprintWeeks(undefined, fingerprint)).toBe(false);
+  expect(mustReprintWeeks(saved, fingerprint)).toBe(false);
+  expect(mustReprintWeeks(saved, timesheetFingerprint({ ...schedule, lockedAt: "now", timesheetExports: {} }, schedule.employees))).toBe(false);
+  expect(mustReprintWeeks(saved, timesheetFingerprint({ ...schedule, shifts: [{ id: "changed" } as any] }, schedule.employees))).toBe(true);
+  expect(mustReprintWeeks(saved, timesheetFingerprint(schedule, schedule.employees.map((e) => ({ ...e, name: "changed" }))))).toBe(true);
+});

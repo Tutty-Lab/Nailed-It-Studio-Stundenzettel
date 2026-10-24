@@ -426,7 +426,7 @@ function drawStundenzettel(
 export async function buildStundenzettelPdf(
   schedule: Schedule,
   employees: Employee[],
-  opts: { dates?: string[]; periodLabel?: string } = {},
+  opts: { dates?: string[]; periodLabel?: string; weeks?: { dates: string[]; label: string }[] } = {},
   onProgress?: (current: number, total: number) => void,
 ): Promise<jsPDF> {
   return buildStundenzettelPdfFor([{ schedule, employees }], opts, onProgress);
@@ -442,28 +442,30 @@ export type StundenzettelJob = { schedule: Schedule; employees: Employee[] };
  */
 export async function buildStundenzettelPdfFor(
   jobs: StundenzettelJob[],
-  opts: { dates?: string[]; periodLabel?: string } = {},
+  opts: { dates?: string[]; periodLabel?: string; weeks?: { dates: string[]; label: string }[] } = {},
   onProgress?: (current: number, total: number) => void,
 ): Promise<jsPDF> {
   const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait", compress: true });
-  const total = jobs.reduce((sum, job) => sum + job.employees.length, 0);
+  const total = jobs.reduce((sum, job) => sum + job.employees.length, 0) * (opts.weeks?.length ?? 1);
   let done = 0;
 
   for (const job of jobs) {
-    const dates = opts.dates ?? datesOfMonth(job.schedule.year, job.schedule.month);
-    const periodLabel = opts.periodLabel ?? monthLabelDe(job.schedule.year, job.schedule.month);
-    // Seite 1 wie Khang/Ngon und Thienlong: Stundenübersicht aller Mitarbeiter.
-    if (job !== jobs[0]) doc.addPage();
-    drawUebersicht(doc, job.schedule, job.employees, dates, periodLabel);
-    for (const employee of job.employees) {
-      doc.addPage();
-      drawStundenzettel(doc, job.schedule, employee, dates, periodLabel);
-      // Zähler NICHT im optionalen Aufruf hochzählen: ohne onProgress würde
-      // onProgress?.(++done) gar nicht ausgewertet – dann lägen alle Seiten
-      // übereinander auf Seite 1.
-      done += 1;
-      onProgress?.(done, total);
-      if (total > 1) await new Promise((r) => setTimeout(r, 0));
+    for (const period of opts.weeks ?? [{ dates: opts.dates, label: opts.periodLabel }]) {
+      const dates = period.dates ?? datesOfMonth(job.schedule.year, job.schedule.month);
+      const periodLabel = period.label ?? monthLabelDe(job.schedule.year, job.schedule.month);
+      // Seite 1 wie Khang/Ngon und Thienlong: Stundenübersicht aller Mitarbeiter.
+      if (doc.getNumberOfPages() > 1 || job !== jobs[0]) doc.addPage();
+      drawUebersicht(doc, job.schedule, job.employees, dates, periodLabel);
+      for (const employee of job.employees) {
+        doc.addPage();
+        drawStundenzettel(doc, job.schedule, employee, dates, periodLabel);
+        // Zähler NICHT im optionalen Aufruf hochzählen: ohne onProgress würde
+        // onProgress?.(++done) gar nicht ausgewertet – dann lägen alle Seiten
+        // übereinander auf Seite 1.
+        done += 1;
+        onProgress?.(done, total);
+        if (total > 1) await new Promise((r) => setTimeout(r, 0));
+      }
     }
   }
 

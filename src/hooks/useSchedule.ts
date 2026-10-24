@@ -83,6 +83,7 @@ function normalizeSchedule(raw: Schedule | undefined, store: StoreConfig): Sched
     employees: (raw.employees ?? []).filter((e) => !REMOVED_EMPLOYEE_IDS.has(e.id)),
     shifts: withoutRemoved(raw.shifts ?? []),
     lockedAt: raw.lockedAt,
+    timesheetExports: raw.timesheetExports,
     underQuotaAccepted: raw.underQuotaAccepted === true ? true : undefined,
     // Archiv der anderen Monate; „Bản đã lưu" der Vorversion wird übernommen.
     archive: archiveFromLegacySavedPlans({
@@ -331,6 +332,12 @@ export function useSchedule(storeId: string) {
     },
     [pushNow],
   );
+
+  const markTimesheetSaved = useCallback((month: string, fingerprint: string) => {
+    setSchedule((cur) => ({ ...cur, timesheetExports: {
+      ...cur.timesheetExports, [month]: { fingerprint, savedAt: new Date().toISOString() },
+    } }));
+  }, []);
 
   /** Merkt eine ausgegebene Woche und sperrt den Monat beim ersten Mal. */
   const markWeekPrinted = useCallback(
@@ -596,6 +603,7 @@ export function useSchedule(storeId: string) {
     timesheetEmployees,
     isLocked,
     markWeekPrinted,
+    markTimesheetSaved,
     savedMonths,
     unlockMonth,
     genError,
