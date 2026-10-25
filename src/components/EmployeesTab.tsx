@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { PayrollHistory } from "./PayrollHistory";
+
 import { MINDESTLOHN_2026, hoursFromPay, recordHours } from "../lib/payRecord";
 import type { UseScheduleReturn } from "../hooks/useSchedule";
 import type { Employee, EmploymentType } from "../types";
@@ -286,7 +286,7 @@ export function EmployeesTab({ store, allStores }: { store: UseScheduleReturn; a
         </ul>
       )}
 
-      <PayrollHistory store={store} />
+
 
       {!locked && (
         <button
