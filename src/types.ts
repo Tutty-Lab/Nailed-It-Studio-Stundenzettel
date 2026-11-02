@@ -50,6 +50,7 @@ export type Employee = {
   name: string;
   employmentType: EmploymentType;
   /** Lương tháng hợp đồng chung (€). Minijob Bảo Ngọc: 630 €. */
+  salaryCoefficient?: number;
   monthlySalary?: number;
   /** Lương giờ hợp đồng chung (€/h). */
   hourlyWage?: number;

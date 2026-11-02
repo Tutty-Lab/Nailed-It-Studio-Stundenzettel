@@ -138,3 +138,20 @@ describe("Tháng trước 10/2026", () => {
     expect(plan(2026, 9).length).toBeGreaterThan(0);
   });
 });
+
+
+it("sửa 43 xuống 40 cập nhật tháng hiện tại, giữ lịch sử tháng cũ", async () => {
+  const { applyEmployeeEdit, employeeForMonth } = await import("../history");
+  const { monthlyTargetMinutesFor } = await import("../contract");
+  const employee = { ...schedule.employees[0], targetMinutes: 43 * 60, payrollRecords: [
+    { month: "2026-09", convertedHours: 43, manualHours: true },
+    { month: "2026-10", convertedHours: 43, manualHours: true },
+  ] };
+  const edited = applyEmployeeEdit(employee, { targetMinutes: 40 * 60, salaryCoefficient: 2 }, "2026-10");
+  expect(monthlyTargetMinutesFor(edited, openDatesOf(2026, 10))).toBe(40 * 60);
+  expect(employeeForMonth(edited, "2026-10").targetMinutes).toBe(40 * 60);
+  expect(employeeForMonth(edited, "2026-09").targetMinutes).toBe(43 * 60);
+  const shifts = plan(2026, 10, [edited]);
+  expect(shifts.reduce((sum, shift) => sum + shift.paidMinutes, 0)).toBe(40 * 60);
+  expect(applyEmployeeEdit(edited, { salaryCoefficient: 5 }, "2026-10").targetMinutes).toBe(40 * 60);
+});

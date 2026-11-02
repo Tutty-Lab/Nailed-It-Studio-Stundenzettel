@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 
-import { MINDESTLOHN_2026, hoursFromPay, recordHours } from "../lib/payRecord";
+import { recordHours } from "../lib/payRecord";
 import type { UseScheduleReturn } from "../hooks/useSchedule";
 import type { Employee, EmploymentType } from "../types";
 import { splitTargetHours } from "../lib/splitTargetHours";
@@ -62,9 +62,8 @@ type Draft = {
   unit: "week" | "month";
   /** Stunden zur gewählten Einheit, als Text – „40,2" mit Komma ist erlaubt. */
   hours: string;
-  /** Lương tháng (€) và lương giờ (€/h) – text, "" = chưa nhập. */
+  /** Hệ số lương, độc lập với giờ mục tiêu. */
   salary: string;
-  wage: string;
   /** „Số ngày làm / tuần": "" = tự động, sonst 1..6 (maxDaysPerWeek). */
   maxDays: string;
   /** „Ngày nghỉ cố định" – die Kehrseite von availableWeekdays. */
@@ -97,8 +96,7 @@ function draftFrom(emp?: Employee, partners: PartnerChoice = {}): Draft {
     name: emp?.name ?? "",
     employmentType: emp?.employmentType ?? "VOLLZEIT",
     unit: emp?.weeklyHours != null ? "week" : "month",
-    salary: emp?.monthlySalary != null ? hoursText(emp.monthlySalary) : "",
-    wage: emp?.hourlyWage != null ? hoursText(emp.hourlyWage) : emp ? "" : hoursText(MINDESTLOHN_2026),
+    salary: (emp?.salaryCoefficient ?? emp?.monthlySalary ?? emp?.hourlyWage) != null ? hoursText((emp?.salaryCoefficient ?? emp?.monthlySalary ?? emp?.hourlyWage)!) : "",
     hours: emp ? hoursText(emp.weeklyHours ?? Math.round((emp.targetMinutes / 60) * 100) / 100) : "169",
     maxDays: emp?.maxDaysPerWeek ? String(Math.min(6, emp.maxDaysPerWeek)) : "",
     daysOff: available && available.length > 0 ? WEEKDAY_ORDER.filter((day) => !available.includes(day)) : [],
@@ -153,12 +151,6 @@ function windowsFromDraft(d: Draft): Employee["preferredWindows"] {
   return out.length > 0 ? out : undefined;
 }
 
-/** Có cả lương tháng và lương giờ -> tự điền giờ/tháng. */
-function withPayHours(d: Draft): Draft {
-  const h = hoursFromPay(parseHours(d.salary), parseHours(d.wage));
-  return h == null ? d : { ...d, unit: "month", hours: hoursText(h) };
-}
-
 /** Entwurf -> Mitarbeiter-Felder (ohne id). */
 function draftToEmployee(d: Draft): Omit<Employee, "id"> {
   const hours = Math.max(0, parseHours(d.hours) || 0);
@@ -173,8 +165,9 @@ function draftToEmployee(d: Draft): Omit<Employee, "id"> {
     // Monatsvertrag: die Stunden stehen direkt im Soll. Wochenvertrag: das
     // Monats-Soll wird je Monat daraus abgeleitet (contract.ts).
     targetMinutes: d.unit === "month" ? Math.round(hours * 60) : 0,
-    monthlySalary: parseHours(d.salary) > 0 ? parseHours(d.salary) : undefined,
-    hourlyWage: parseHours(d.wage) > 0 ? parseHours(d.wage) : undefined,
+    salaryCoefficient: parseHours(d.salary) >= 0 && d.salary.trim() !== "" ? parseHours(d.salary) : undefined,
+    monthlySalary: undefined,
+    hourlyWage: undefined,
     weeklyHours: d.unit === "week" ? hours : undefined,
     // Ende muss nach Beginn liegen – sonst die feste Schicht ignorieren, statt
     // eine kaputte Zeitspanne zu speichern.
@@ -590,7 +583,7 @@ function EmployeeSheet({
     list.includes(day) ? list.filter((x) => x !== day) : [...list, day];
 
   // Mit den übrigen Feldern der Person (Lohnabrechnung je Monat bleibt erhalten).
-  const monatMin = monthlyTargetMinutesFor({ ...employee, ...draftToEmployee(d), id: employee?.id ?? "preview" }, openDates, workHours);
+  const monatMin = monthlyTargetMinutesFor({ ...employee, payrollRecords: [], ...draftToEmployee(d), id: employee?.id ?? "preview" }, openDates, workHours);
   const vacationBad = d.vacations.some((v) => !v.start || !v.end || v.end < v.start);
   const info = splitInfo(monatMin / 60, d.employmentType);
   const shiftMinH = parseHours(d.shiftMin);
@@ -647,21 +640,10 @@ function EmployeeSheet({
                 ]}
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <label className="block">
-                <FieldLabel>Lương tháng (€)</FieldLabel>
-                <HoursInput value={d.salary} placeholder="VD 630" unit="€"
-                  onChange={(v) => setD((prev) => withPayHours({ ...prev, salary: v }))} />
-              </label>
-              <label className="block">
-                <FieldLabel>Lương giờ (€/h)</FieldLabel>
-                <HoursInput value={d.wage} placeholder="VD 13,90" unit="€/h"
-                  onChange={(v) => setD((prev) => withPayHours({ ...prev, wage: v }))} />
-              </label>
-            </div>
-            <p className="-mt-1 text-xs text-slate-500">
-              Nhập cả lương tháng và lương giờ thì giờ mục tiêu = lương tháng ÷ lương giờ. Muốn số khác thì sửa thẳng ô giờ bên dưới.
-            </p>
+            <label className="block">
+              <FieldLabel>Hệ số lương</FieldLabel>
+              <HoursInput value={d.salary} placeholder="Nhập hệ số" unit="" onChange={(v) => set("salary", v)} />
+            </label>
             <div>
               <FieldLabel hint={`tháng này ≈ ${minutesToShortHours(monatMin)} · ${info.text}`}>
                 {d.unit === "week" ? "Giờ / tuần" : "Giờ / tháng"}

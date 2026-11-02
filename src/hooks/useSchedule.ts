@@ -1,3 +1,4 @@
+import { applyEmployeeEdit } from "../lib/history";
 // ============================================================================
 // Zentrales State-Management (ohne externe Bibliothek). Kapselt Schedule,
 // LocalStorage-Persistenz und alle Aktionen (Generieren, Bearbeiten, Reset) –
@@ -383,7 +384,7 @@ export function useSchedule(storeId: string) {
       if (s.lockedAt) return s; // Monat ausgegeben und gesperrt
       return {
         ...s,
-        employees: s.employees.map((e) => (e.id === id ? { ...e, ...patch } : e)),
+        employees: s.employees.map((e) => (e.id === id ? applyEmployeeEdit(e, patch, monthKey(s.year, s.month)) : e)),
       };
     });
   }, []);

@@ -81,3 +81,13 @@ export function freezeMonth(
     });
   });
 }
+
+/** Employee edits override the active month's frozen hours. Older months stay intact. */
+export function applyEmployeeEdit(employee: Employee, patch: Partial<Employee>, month: string): Employee {
+  const next = { ...employee, ...patch };
+  if (patch.targetMinutes == null && !("weeklyHours" in patch)) return next;
+  if (next.weeklyHours != null) {
+    return { ...next, payrollRecords: next.payrollRecords?.filter((r) => r.month !== month) };
+  }
+  return upsertRecord(next, { month, convertedHours: next.targetMinutes / 60, manualHours: true });
+}
