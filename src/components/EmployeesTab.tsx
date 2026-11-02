@@ -64,6 +64,7 @@ type Draft = {
   hours: string;
   /** Hệ số lương, độc lập với giờ mục tiêu. */
   salary: string;
+  salaryUnit: "hour" | "month";
   /** „Số ngày làm / tuần": "" = tự động, sonst 1..6 (maxDaysPerWeek). */
   maxDays: string;
   /** „Ngày nghỉ cố định" – die Kehrseite von availableWeekdays. */
@@ -97,6 +98,7 @@ function draftFrom(emp?: Employee, partners: PartnerChoice = {}): Draft {
     employmentType: emp?.employmentType ?? "VOLLZEIT",
     unit: emp?.weeklyHours != null ? "week" : "month",
     salary: (emp?.salaryCoefficient ?? emp?.monthlySalary ?? emp?.hourlyWage) != null ? hoursText((emp?.salaryCoefficient ?? emp?.monthlySalary ?? emp?.hourlyWage)!) : "",
+    salaryUnit: emp?.salaryUnit ?? (emp?.monthlySalary != null ? "month" : "hour"),
     hours: emp ? hoursText(emp.weeklyHours ?? Math.round((emp.targetMinutes / 60) * 100) / 100) : "169",
     maxDays: emp?.maxDaysPerWeek ? String(Math.min(6, emp.maxDaysPerWeek)) : "",
     daysOff: available && available.length > 0 ? WEEKDAY_ORDER.filter((day) => !available.includes(day)) : [],
@@ -166,6 +168,7 @@ function draftToEmployee(d: Draft): Omit<Employee, "id"> {
     // Monats-Soll wird je Monat daraus abgeleitet (contract.ts).
     targetMinutes: d.unit === "month" ? Math.round(hours * 60) : 0,
     salaryCoefficient: parseHours(d.salary) >= 0 && d.salary.trim() !== "" ? parseHours(d.salary) : undefined,
+    salaryUnit: d.salaryUnit,
     monthlySalary: undefined,
     hourlyWage: undefined,
     weeklyHours: d.unit === "week" ? hours : undefined,
@@ -640,10 +643,19 @@ function EmployeeSheet({
                 ]}
               />
             </div>
-            <label className="block">
-              <FieldLabel>Hệ số lương</FieldLabel>
-              <HoursInput value={d.salary} placeholder="Nhập hệ số" unit="" onChange={(v) => set("salary", v)} />
-            </label>
+            <div>
+              <FieldLabel>Lương</FieldLabel>
+              <div className="flex items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <HoursInput value={d.salary} placeholder="Nhập lương" unit="€" onChange={(v) => set("salary", v)} />
+                </div>
+                <select aria-label="Đơn vị lương" className={inputClass} value={d.salaryUnit}
+                  onChange={(e) => set("salaryUnit", e.target.value as Draft["salaryUnit"])}>
+                  <option value="hour">Theo giờ</option>
+                  <option value="month">Theo tháng</option>
+                </select>
+              </div>
+            </div>
             <div>
               <FieldLabel hint={`tháng này ≈ ${minutesToShortHours(monatMin)} · ${info.text}`}>
                 {d.unit === "week" ? "Giờ / tuần" : "Giờ / tháng"}
