@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 
-import { recordHours } from "../lib/payRecord";
+import { hoursFromPay, recordHours } from "../lib/payRecord";
 import type { UseScheduleReturn } from "../hooks/useSchedule";
 import type { Employee, EmploymentType } from "../types";
 import { splitTargetHours } from "../lib/splitTargetHours";
@@ -65,6 +65,8 @@ type Draft = {
   /** Hệ số lương, độc lập với giờ mục tiêu. */
   salary: string;
   salaryUnit: "hour" | "month";
+  salaryMode: "pay" | "hours";
+  wage: string;
   /** „Số ngày làm / tuần": "" = tự động, sonst 1..6 (maxDaysPerWeek). */
   maxDays: string;
   /** „Ngày nghỉ cố định" – die Kehrseite von availableWeekdays. */
@@ -99,6 +101,8 @@ function draftFrom(emp?: Employee, partners: PartnerChoice = {}): Draft {
     unit: emp?.weeklyHours != null ? "week" : "month",
     salary: (emp?.salaryCoefficient ?? emp?.monthlySalary ?? emp?.hourlyWage) != null ? hoursText((emp?.salaryCoefficient ?? emp?.monthlySalary ?? emp?.hourlyWage)!) : "",
     salaryUnit: emp?.salaryUnit ?? (emp?.monthlySalary != null ? "month" : "hour"),
+    salaryMode: emp?.monthlySalary != null || emp?.hourlyWage != null ? "pay" : "hours",
+    wage: emp?.hourlyWage != null ? hoursText(emp.hourlyWage) : "",
     hours: emp ? hoursText(emp.weeklyHours ?? Math.round((emp.targetMinutes / 60) * 100) / 100) : "169",
     maxDays: emp?.maxDaysPerWeek ? String(Math.min(6, emp.maxDaysPerWeek)) : "",
     daysOff: available && available.length > 0 ? WEEKDAY_ORDER.filter((day) => !available.includes(day)) : [],
@@ -155,7 +159,8 @@ function windowsFromDraft(d: Draft): Employee["preferredWindows"] {
 
 /** Entwurf -> Mitarbeiter-Felder (ohne id). */
 function draftToEmployee(d: Draft): Omit<Employee, "id"> {
-  const hours = Math.max(0, parseHours(d.hours) || 0);
+  const payHours = hoursFromPay(parseHours(d.salary), parseHours(d.wage));
+  const hours = Math.max(0, (d.salaryMode === "pay" ? payHours : parseHours(d.hours)) || 0);
   const tage = Number(d.maxDays);
   const fixedStart = safeMinutes(d.fixedStart, FIXED_START_DEFAULT);
   const fixedEnd = safeMinutes(d.fixedEnd, FIXED_END_DEFAULT);
@@ -166,12 +171,12 @@ function draftToEmployee(d: Draft): Omit<Employee, "id"> {
     employmentType: d.employmentType,
     // Monatsvertrag: die Stunden stehen direkt im Soll. Wochenvertrag: das
     // Monats-Soll wird je Monat daraus abgeleitet (contract.ts).
-    targetMinutes: d.unit === "month" ? Math.round(hours * 60) : 0,
+    targetMinutes: Math.round(hours * 60),
     salaryCoefficient: parseHours(d.salary) >= 0 && d.salary.trim() !== "" ? parseHours(d.salary) : undefined,
     salaryUnit: d.salaryUnit,
-    monthlySalary: undefined,
-    hourlyWage: undefined,
-    weeklyHours: d.unit === "week" ? hours : undefined,
+    monthlySalary: d.salaryMode === "pay" && parseHours(d.salary) > 0 ? parseHours(d.salary) : undefined,
+    hourlyWage: d.salaryMode === "pay" && parseHours(d.wage) > 0 ? parseHours(d.wage) : undefined,
+    weeklyHours: undefined,
     // Ende muss nach Beginn liegen – sonst die feste Schicht ignorieren, statt
     // eine kaputte Zeitspanne zu speichern.
     fixedShift:
@@ -644,29 +649,28 @@ function EmployeeSheet({
               />
             </div>
             <div>
-              <FieldLabel>Lương</FieldLabel>
-              <div className="flex items-center gap-2">
-                <div className="min-w-0 flex-1">
-                  <HoursInput value={d.salary} placeholder="Nhập lương" unit="€" onChange={(v) => set("salary", v)} />
+              <FieldLabel>Hệ số</FieldLabel>
+              <select aria-label="Chọn cách nhập" className={`${inputClass} w-full`} value={d.salaryMode}
+                onChange={(e) => set("salaryMode", e.target.value as Draft["salaryMode"])}>
+                <option value="pay">Opt1: Lương</option>
+                <option value="hours">Opt2: Giờ</option>
+              </select>
+              {d.salaryMode === "pay" ? (
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <HoursInput value={d.salary} placeholder="Tổng lương tháng" unit="€" onChange={(v) => set("salary", v)} />
+                  <HoursInput value={d.wage} placeholder="Lương giờ" unit="€/h" onChange={(v) => set("wage", v)} />
                 </div>
-                <select aria-label="Đơn vị lương" className={inputClass} value={d.salaryUnit}
-                  onChange={(e) => set("salaryUnit", e.target.value as Draft["salaryUnit"])}>
-                  <option value="hour">Theo giờ</option>
-                  <option value="month">Theo tháng</option>
-                </select>
+              ) : null}
+            </div>
+            {d.salaryMode === "hours" ? (
+              <div>
+                <FieldLabel>Tổng giờ tháng</FieldLabel>
+                <HoursInput value={d.hours} onChange={(v) => set("hours", v)} placeholder="VD 40" />
               </div>
-            </div>
-            <div>
-              <FieldLabel hint={`tháng này ≈ ${minutesToShortHours(monatMin)} · ${info.text}`}>
-                {d.unit === "week" ? "Giờ / tuần" : "Giờ / tháng"}
-              </FieldLabel>
-              <HoursInput
-                value={d.hours}
-                onChange={(v) => set("hours", v)}
-                placeholder={d.unit === "week" ? "VD 39" : "VD 169"}
-              />
-              {!info.ok && <p className="mt-1 text-xs text-rose-600">{info.text}</p>}
-            </div>
+            ) : (
+              <p className="text-sm text-slate-600">Giờ tháng = tổng lương tháng ÷ lương giờ: {minutesToShortHours(monatMin)}</p>
+            )}
+            {!info.ok && <p className="mt-1 text-xs text-rose-600">{info.text}</p>}
           </SheetSection>
 
           {/* Nâng cao: alles außer Tên, Hình thức, Bộ phận, Giờ. In der Demo gesperrt. */}
@@ -787,17 +791,6 @@ function EmployeeSheet({
                   </SheetSection>
 
                   <SheetSection title="Hợp đồng">
-                    <div>
-                      <FieldLabel>Hợp đồng theo</FieldLabel>
-                      <Segmented<Draft["unit"]>
-                        value={d.unit}
-                        onChange={(v) => set("unit", v)}
-                        options={[
-                          { value: "month", label: "Tháng" },
-                          { value: "week", label: "Tuần" },
-                        ]}
-                      />
-                    </div>
                     <div>
                       <FieldLabel hint="bỏ trống = tự động">Số ngày làm / tuần</FieldLabel>
                       <div className="grid grid-cols-7 gap-1">
@@ -1008,7 +1001,7 @@ function EmployeeSheet({
               </button>
               <button
                 onClick={() => onSave(draftToEmployee(d), d.partners)}
-                disabled={d.name.trim().length === 0 || vacationBad}
+                disabled={d.name.trim().length === 0 || vacationBad || (d.salaryMode === "pay" && hoursFromPay(parseHours(d.salary), parseHours(d.wage)) == null)}
                 className="rounded-lg bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-40"
               >
                 Lưu
